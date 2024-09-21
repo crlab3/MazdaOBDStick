@@ -2,6 +2,7 @@
 #include "girl.h"
 #include "logo.h"
 #include "logo2.h"
+#include "dpfregen.h"
 #include "pin_config.h"
 #include <WiFi.h>
 #include "ELMduino.h"
@@ -68,7 +69,7 @@ void loop()
   switch (i++) 
     {
     case 0:
-      tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_logo);
+      tft.pushImage(0, 0, 160, 80, (uint16_t *)dpfregen);
       break;
     case 1:
       tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_logo2);
