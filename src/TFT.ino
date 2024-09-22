@@ -69,7 +69,7 @@ void loop()
   switch (i++) 
     {
     case 0:
-      tft.pushImage(0, 0, 160, 80, (uint16_t *)dpfregen);
+      tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_dpfregen);
       break;
     case 1:
       tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_logo2);
