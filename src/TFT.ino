@@ -10,14 +10,12 @@
 #include "obdData.h"
 #include <FastLED.h>
 #include "OneButton.h" // https://github.com/mathertel/OneButton
-
-
-/* external library */
-/* To use Arduino, you need to place lv_conf.h in the \Arduino\libraries directory */
 #include "TFT_eSPI.h" // https://github.com/Bodmer/TFT_eSPI
+#include "digital7font.h"
 
 #define DEBUGMODE 1
-#define OBD_ERROR_COUNT_MAX 100000000
+#define OBD_ERROR_COUNT_MAX 100
+// Pin definitions for RGB LED CI,DI
 #define DATA_PIN 3
 #define CLOCK_PIN 13
 
@@ -29,7 +27,6 @@ ELM327 myELM327;
 OneButton button(BTN_PIN, true);
 CRGB onBoardRGBLED;
 
-
 enum ObdConnectionState
 {
     ELM_NOT_CONNECTED,
@@ -38,23 +35,26 @@ enum ObdConnectionState
     ELM_DEVICE_CONNECTED
 };
 
+// Function Prototypes
 void IRAM_ATTR timerAISR();
-int8_t obdGetData(uint8_t pidIdx);
+void IRAM_ATTR timerTFTISR();
+int8_t obdGetData(uint8_t);
 
-
+// GLOBAL VARIABLES
 const char *SSID = "WiFi_OBDII";    // WiFi ELM327 SSID
 
-// Main 200 ms timer for multiple operations
+// OBD update timer (200 ms)
 hw_timer_t * timerA = NULL;
 uint8_t timerAID = 0;
 uint16_t timerAPrescaler = 80;
 int timerAThreshold = 100000;
 uint8_t timerAFlag = 0;
 
+// TFT update timer (1000 ms)
 hw_timer_t * timerTFT = NULL;
 uint8_t timerTFTID = 1;
 uint16_t timerTFTPrescaler = 80;
-int timerTFTThreshold = 50000;
+int timerTFTThreshold = 1000000;
 uint8_t timerTFTFlag = 0;
 
 uint8_t initCycle = 1;
@@ -63,8 +63,6 @@ uint8_t pidIndex = 0;
 uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
 
-uint8_t k = 0;
-uint8_t btn_press = 0;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 
@@ -74,7 +72,7 @@ void setup()
 {
   // Setup LED Configuration of a single RGB LED on Board
   FastLED.addLeds<APA102, LED_DI_PIN, LED_CI_PIN, BGR>(&onBoardRGBLED, 1);
-  onBoardRGBLED = CRGB(150,100,0);
+  onBoardRGBLED = CRGB(255,0,0);
   FastLED.show();
   
   Serial.begin(115200);
@@ -114,40 +112,41 @@ void setup()
 void loop() 
 { // Put your main code here, to run repeatedly:
 button.tick();
+
 if(timerAFlag && initCycle)
+{
+    timerAFlag = 0;
+    if(WiFi.status() == WL_CONNECTED && connectionState == ELM_NOT_CONNECTED)
     {
-        timerAFlag = 0;
-        if(WiFi.status() == WL_CONNECTED && connectionState == ELM_NOT_CONNECTED)
+        #if DEBUGMODE
+            Serial.println("Connection state = ELM_WIFI_CONNECTED");
+        #endif
+        connectionState = ELM_WIFI_CONNECTED;
+    }
+    if(connectionState == ELM_WIFI_CONNECTED)
+    {
+        uint32_t connResp = client.connect(server, 35000);
+        if(connResp)
+        {    
+            #if DEBUGMODE
+                Serial.println("Connection state = ELM_CLIENT_CONNECTED");
+            #endif
+            connectionState = ELM_CLIENT_CONNECTED;
+        }
+    }
+    if(connectionState == ELM_CLIENT_CONNECTED)
+    {
+        bool elmStatus = myELM327.begin(client, false, 2000);
+        if(elmStatus)
         {
             #if DEBUGMODE
-                Serial.println("Connection state = ELM_WIFI_CONNECTED");
+                Serial.println("Connection state = ELM_DEVICE_CONNECTED");
             #endif
-            connectionState = ELM_WIFI_CONNECTED;
+            connectionState = ELM_DEVICE_CONNECTED;
+            initCycle = 0;
         }
-        if(connectionState == ELM_WIFI_CONNECTED)
-        {
-            uint32_t connResp = client.connect(server, 35000);
-            if(connResp)
-            {    
-                #if DEBUGMODE
-                    Serial.println("Connection state = ELM_CLIENT_CONNECTED");
-                #endif
-                connectionState = ELM_CLIENT_CONNECTED;
-            }
-        }
-        if(connectionState == ELM_CLIENT_CONNECTED)
-        {
-            bool elmStatus = myELM327.begin(client, false, 2000);
-            if(elmStatus)
-            {
-                #if DEBUGMODE
-                    Serial.println("Connection state = ELM_DEVICE_CONNECTED");
-                #endif
-                connectionState = ELM_DEVICE_CONNECTED;
-                initCycle = 0;
-            }
-        }
-    } 
+    }
+} 
 
 if(connectionState == ELM_DEVICE_CONNECTED)
 {
@@ -173,30 +172,12 @@ if(connectionState == ELM_DEVICE_CONNECTED)
         Serial.print("Current PID Index: ");
         Serial.println(pidIndex);
     #endif
+    // tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_dpfregen);
 }
 
-  /*if(timerAFlag)
-  {
-  timerAFlag = ~timerAFlag;
-  switch (i++) 
-    {
-    case 0:
-      tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_dpfregen);
-      break;
-    case 1:
-      tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_logo2);
-      break;
-    case 2:
-      tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_girl);
-      i = 0;
-      break;
-    default:
-      break;
-    }
-  }
-  */
 if(timerTFTFlag)
 {
+  coolantTempSprite.loadFont(digital7font);
   coolantTempSprite.fillScreen(TFT_BLACK);
   coolantTempSprite.setTextDatum(MC_DATUM);
   coolantTempSprite.setTextColor(TFT_BLUE);
@@ -207,7 +188,16 @@ if(timerTFTFlag)
   coolantTempSprite.setTextColor(TFT_YELLOW);
   coolantTempSprite.drawNumber(obdArray[2].pidData,tft.width()/2,tft.height()/2-50,4);
   coolantTempSprite.pushSprite(0,0);
-  k++;
+  if(obdArray[0].pidData>=80 && obdArray[1].pidData>=80)
+  {
+    onBoardRGBLED = CRGB(0,255,0);
+    FastLED.show();
+  }
+  else
+  {
+    onBoardRGBLED = CRGB(0,0,255);
+    FastLED.show();
+  }
 }
 }
 
