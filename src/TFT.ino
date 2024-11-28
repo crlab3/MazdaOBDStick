@@ -8,6 +8,9 @@
 #include "ELMduino.h"
 #include "esp_mac.h"
 #include "obdData.h"
+#include <FastLED.h>
+#include "OneButton.h" // https://github.com/mathertel/OneButton
+
 
 /* external library */
 /* To use Arduino, you need to place lv_conf.h in the \Arduino\libraries directory */
@@ -15,12 +18,17 @@
 
 #define DEBUGMODE 1
 #define OBD_ERROR_COUNT_MAX 100000000
+#define DATA_PIN 3
+#define CLOCK_PIN 13
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite coolantTempSprite = TFT_eSprite(&tft);
 IPAddress server(192, 168, 0, 10);
 WiFiClient client;
 ELM327 myELM327;
+OneButton button(BTN_PIN, true);
+CRGB onBoardRGBLED;
+
 
 enum ObdConnectionState
 {
@@ -32,6 +40,7 @@ enum ObdConnectionState
 
 void IRAM_ATTR timerAISR();
 int8_t obdGetData(uint8_t pidIdx);
+
 
 const char *SSID = "WiFi_OBDII";    // WiFi ELM327 SSID
 
@@ -55,6 +64,7 @@ uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
 
 uint8_t k = 0;
+uint8_t btn_press = 0;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 
@@ -62,6 +72,11 @@ ObdConnectionState connectionState=ELM_NOT_CONNECTED;
 
 void setup() 
 {
+  // Setup LED Configuration of a single RGB LED on Board
+  FastLED.addLeds<APA102, LED_DI_PIN, LED_CI_PIN, BGR>(&onBoardRGBLED, 1);
+  onBoardRGBLED = CRGB(150,100,0);
+  FastLED.show();
+  
   Serial.begin(115200);
   Serial.println("Hello T-Dongle-S3");
 
@@ -98,7 +113,7 @@ void setup()
 
 void loop() 
 { // Put your main code here, to run repeatedly:
-
+button.tick();
 if(timerAFlag && initCycle)
     {
         timerAFlag = 0;
