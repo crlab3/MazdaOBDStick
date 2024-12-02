@@ -1,7 +1,4 @@
 #include "Arduino.h"
-#include "girl.h"
-#include "logo.h"
-#include "logo2.h"
 #include "dpfregen.h"
 #include "pin_config.h"
 #include <WiFi.h>
@@ -82,7 +79,7 @@ void setup()
     // Initialise TFT
     tft.init();
     tft.setRotation(2);
-    tft.fillScreen(TFT_DARKGREY);
+    tft.fillScreen(TFT_BLACK);
     
     // Set TFT background LED to on
     pinMode(TFT_LEDA_PIN, OUTPUT);
@@ -186,9 +183,9 @@ void loop()
         mainSprite.fillScreen(TFT_BLACK);
         mainSprite.setTextDatum(MC_DATUM);
         mainSprite.setTextSize(2);
-        mainSprite.setTextColor(TFT_BLACK, TFT_BLUE,true);
+        mainSprite.setTextColor(TFT_BLUE);
         mainSprite.drawNumber(obdArray[0].pidData,tft.width()/2,tft.height()/2,4);
-        mainSprite.setTextColor(TFT_BLACK, TFT_ORANGE,true);
+        mainSprite.setTextColor(TFT_ORANGE);
         mainSprite.drawNumber(obdArray[1].pidData,tft.width()/2,tft.height()/2+50,4);
         mainSprite.setTextColor(TFT_YELLOW,false);
         if(obdArray[2].pidData>0)
