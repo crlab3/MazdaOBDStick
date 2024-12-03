@@ -10,7 +10,7 @@
 #include "TFT_eSPI.h" // https://github.com/Bodmer/TFT_eSPI
 #include "digital7font.h"
 
-#define DEBUGMODE 0
+#define DEBUGMODE 1
 #define OBD_ERROR_COUNT_MAX 100
 // Pin definitions for RGB LED CI,DI
 #define DATA_PIN 3
@@ -36,6 +36,7 @@ enum ObdConnectionState
 void IRAM_ATTR timerAISR();
 void IRAM_ATTR timerTFTISR();
 int8_t obdGetData(uint8_t);
+void singleClick();
 
 // GLOBAL VARIABLES
 const char *SSID = "WiFi_OBDII";    // WiFi ELM327 SSID
@@ -59,6 +60,8 @@ uint8_t initCycle = 1;
 uint8_t pidIndex = 0;
 uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
+
+uint8_t buttonPressed = 0;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 ObdConnectionState connectionState=ELM_NOT_CONNECTED;
@@ -101,6 +104,8 @@ void setup()
     timerAlarmWrite(timerA, timerAThreshold, true);
     timerAlarmEnable(timerA);
     timerStart(timerA);
+
+    button.attachClick(singleClick);
 
     // Initialize WiFi Connection
     WiFi.mode(WIFI_AP);
@@ -198,22 +203,30 @@ void loop()
         }
         mainSprite.pushSprite(0,0);
         
-        // Turn the RGB LED to the correct color value
-        if(obdArray[0].pidData<80 && obdArray[1].pidData<80)
+        // Turn the RGB LED to yellow for showing DPF regeneration
+        if(obdArray[2].pidData>0)
         {
-            onBoardRGBLED = CRGB(0,0,255);
-            FastLED.show();
-        } 
-        if(obdArray[0].pidData>=80 && obdArray[1].pidData>=80 && obdArray[0].pidData<110 && obdArray[1].pidData<110)
-        {
-            onBoardRGBLED = CRGB(0,255,0);
-            FastLED.show();
+            // Show that regeneration is in progress!
+            onBoardRGBLED = CRGB(180,255,0);
         }
-        if(obdArray[0].pidData>=110 && obdArray[1].pidData>=110)
+        // If no regeneration is in progress, change to show temperature value
+        else
         {
-            onBoardRGBLED = CRGB(255,0,0);
-            FastLED.show();
+            if(obdArray[0].pidData<80 && obdArray[1].pidData<80)
+            {
+                onBoardRGBLED = CRGB(0,0,255);
+            } 
+            if(obdArray[0].pidData>=80 && obdArray[1].pidData>=80 && obdArray[0].pidData<110 && obdArray[1].pidData<110)
+            {
+                onBoardRGBLED = CRGB(0,255,0);
+            }
+            if(obdArray[0].pidData>=110)
+            {
+                // Alert only when coolant has higher temperature than 110C
+                onBoardRGBLED = CRGB(255,0,0);
+            }
         }
+        FastLED.show();
     }
 
 }
@@ -226,6 +239,12 @@ void IRAM_ATTR timerAISR()
 void IRAM_ATTR timerTFTISR()
 {
   timerTFTFlag = ~timerTFTFlag;
+}
+
+void singleClick()
+{
+    buttonPressed = ~buttonPressed;
+    Serial.println(buttonPressed);
 }
 
 int8_t obdGetData(uint8_t pidIdx)
