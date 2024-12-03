@@ -9,6 +9,7 @@
 #include "OneButton.h" // https://github.com/mathertel/OneButton
 #include "TFT_eSPI.h" // https://github.com/Bodmer/TFT_eSPI
 #include "digital7font.h"
+#include "mzdlogo.h"
 
 #define DEBUGMODE 1
 #define OBD_ERROR_COUNT_MAX 100
@@ -62,6 +63,7 @@ uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
 
 uint8_t buttonPressed = 0;
+uint8_t brightnessLevelDiv = 1;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 ObdConnectionState connectionState=ELM_NOT_CONNECTED;
@@ -86,7 +88,7 @@ void setup()
     
     // Set TFT background LED to on
     pinMode(TFT_LEDA_PIN, OUTPUT);
-    digitalWrite(TFT_LEDA_PIN, 0);
+    analogWrite(TFT_LEDA_PIN, 0);
 
     // Sprite creation
     mainSprite.createSprite(tft.width(),tft.height());
@@ -110,11 +112,12 @@ void setup()
     // Initialize WiFi Connection
     WiFi.mode(WIFI_AP);
     WiFi.begin(SSID);
+    tft.pushImage(-40, 40, 160, 80, (uint16_t *)gImage_mzdlogo);
 }
 
 void loop() 
 { 
-    // Call button callback function to trigger interrupt
+    // Call button callback function to€ trigger interrupt
     button.tick();
 
     // Build connection to WiFi OBD module
@@ -154,8 +157,9 @@ void loop()
     } 
 
     // WiFi Connection is stabilized, start OBD command
-    if(connectionState == ELM_DEVICE_CONNECTED)
+    if(timerAFlag && connectionState == ELM_DEVICE_CONNECTED)
     {
+        timerAFlag = 0;
         int8_t ELMRxState = obdGetData(pidIndex);
         if(ELMRxState == ELM_SUCCESS)
         {
@@ -178,11 +182,10 @@ void loop()
             Serial.print("Current PID Index: ");
             Serial.println(pidIndex);
         #endif
-        // tft.pushImage(0, 0, 160, 80, (uint16_t *)gImage_dpfregen);
     }
 
     // Update the TFT Screen with a main sprite
-    if(timerTFTFlag)
+    if(timerTFTFlag && connectionState == ELM_DEVICE_CONNECTED)
     {
         mainSprite.loadFont(digital7font);
         mainSprite.fillScreen(TFT_BLACK);
@@ -207,26 +210,42 @@ void loop()
         if(obdArray[2].pidData>0)
         {
             // Show that regeneration is in progress!
-            onBoardRGBLED = CRGB(180,255,0);
+            onBoardRGBLED = CRGB(180/brightnessLevelDiv,255/brightnessLevelDiv,0);
         }
         // If no regeneration is in progress, change to show temperature value
         else
         {
             if(obdArray[0].pidData<80 && obdArray[1].pidData<80)
             {
-                onBoardRGBLED = CRGB(0,0,255);
+                onBoardRGBLED = CRGB(0,0,255/brightnessLevelDiv);
             } 
             if(obdArray[0].pidData>=80 && obdArray[1].pidData>=80 && obdArray[0].pidData<110 && obdArray[1].pidData<110)
             {
-                onBoardRGBLED = CRGB(0,255,0);
+                onBoardRGBLED = CRGB(0,255/brightnessLevelDiv,0);
             }
             if(obdArray[0].pidData>=110)
             {
                 // Alert only when coolant has higher temperature than 110C
-                onBoardRGBLED = CRGB(255,0,0);
+                onBoardRGBLED = CRGB(255/brightnessLevelDiv,0,0);
             }
         }
         FastLED.show();
+    }
+    if(buttonPressed)
+    {
+        buttonPressed = 0;
+        if(brightnessLevelDiv == 1)
+        {
+            brightnessLevelDiv = 5;
+            analogWrite(TFT_LEDA_PIN, 250);
+        }
+
+        else
+        {
+            analogWrite(TFT_LEDA_PIN, 0);
+            brightnessLevelDiv = 1;
+        }
+            
     }
 
 }
@@ -243,8 +262,7 @@ void IRAM_ATTR timerTFTISR()
 
 void singleClick()
 {
-    buttonPressed = ~buttonPressed;
-    Serial.println(buttonPressed);
+    buttonPressed = 1;
 }
 
 int8_t obdGetData(uint8_t pidIdx)
