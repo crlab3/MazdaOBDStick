@@ -16,6 +16,13 @@
 // Pin definitions for RGB LED CI,DI
 #define DATA_PIN 3
 #define CLOCK_PIN 13
+#define TEMP_OK 80
+#define TEMP_HIGH 110
+// Nightmode brightness divider
+#define RGBBRIGHTDIV_NIGHT 5
+#define RGBBRIGHTDIV_DAY 1
+#define TFTBRIGHT_DAY 0
+#define TFTBRIGHT_NIGHT 250
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite mainSprite = TFT_eSprite(&tft);
@@ -46,7 +53,7 @@ const char *SSID = "WiFi_OBDII";    // WiFi ELM327 SSID
 hw_timer_t * timerA = NULL;
 uint8_t timerAID = 0;
 uint16_t timerAPrescaler = 80;
-int timerAThreshold = 100000;
+int timerAThreshold = 300000;
 uint8_t timerAFlag = 0;
 
 // TFT update timer (1000 ms)
@@ -63,7 +70,7 @@ uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
 
 uint8_t buttonPressed = 0;
-uint8_t brightnessLevelDiv = 1;
+uint8_t rgbBrightDiv = 1;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 ObdConnectionState connectionState=ELM_NOT_CONNECTED;
@@ -184,9 +191,12 @@ void loop()
         #endif
     }
 
-    // Update the TFT Screen with a main sprite
+
     if(timerTFTFlag && connectionState == ELM_DEVICE_CONNECTED)
     {
+        // Reset timer flag
+        timerTFTFlag = 0;
+        // Update the TFT Screen with a main sprite
         mainSprite.loadFont(digital7font);
         mainSprite.fillScreen(TFT_BLACK);
         mainSprite.setTextDatum(MC_DATUM);
@@ -205,49 +215,52 @@ void loop()
             mainSprite.drawString("---",tft.width()/2,tft.height()/2-50,4); 
         }
         mainSprite.pushSprite(0,0);
-        
+
+        //Update RGB LED
         // Turn the RGB LED to yellow for showing DPF regeneration
         if(obdArray[2].pidData>0)
         {
             // Show that regeneration is in progress!
-            onBoardRGBLED = CRGB(180/brightnessLevelDiv,255/brightnessLevelDiv,0);
+            onBoardRGBLED = CRGB(180/rgbBrightDiv,255/rgbBrightDiv,0);
         }
         // If no regeneration is in progress, change to show temperature value
         else
         {
-            if(obdArray[0].pidData<80 && obdArray[1].pidData<80)
+            if(obdArray[0].pidData<TEMP_OK && obdArray[1].pidData<TEMP_OK)
             {
-                onBoardRGBLED = CRGB(0,0,255/brightnessLevelDiv);
+                onBoardRGBLED = CRGB(0,0,255/rgbBrightDiv);
             } 
-            if(obdArray[0].pidData>=80 && obdArray[1].pidData>=80 && obdArray[0].pidData<110 && obdArray[1].pidData<110)
+            if(obdArray[0].pidData>=TEMP_OK && obdArray[1].pidData>=TEMP_OK && obdArray[0].pidData<TEMP_HIGH && obdArray[1].pidData<TEMP_HIGH)
             {
-                onBoardRGBLED = CRGB(0,255/brightnessLevelDiv,0);
+                onBoardRGBLED = CRGB(0,255/rgbBrightDiv,0);
             }
-            if(obdArray[0].pidData>=110)
+            if(obdArray[0].pidData>=TEMP_HIGH)
             {
                 // Alert only when coolant has higher temperature than 110C
-                onBoardRGBLED = CRGB(255/brightnessLevelDiv,0,0);
+                onBoardRGBLED = CRGB(255/rgbBrightDiv,0,0);
             }
         }
         FastLED.show();
     }
+
+    // BUTTON TASK
     if(buttonPressed)
     {
         buttonPressed = 0;
-        if(brightnessLevelDiv == 1)
+        uint8_t tftBrightness = 0;
+        if(rgbBrightDiv == RGBBRIGHTDIV_DAY)
         {
-            brightnessLevelDiv = 5;
-            analogWrite(TFT_LEDA_PIN, 250);
+            rgbBrightDiv = RGBBRIGHTDIV_NIGHT;
+            tftBrightness = TFTBRIGHT_NIGHT; // the higher the darker
         }
-
         else
         {
-            analogWrite(TFT_LEDA_PIN, 0);
-            brightnessLevelDiv = 1;
-        }
-            
+            rgbBrightDiv = RGBBRIGHTDIV_DAY;
+            tftBrightness = TFTBRIGHT_DAY; // maximum brightness for TFT
+        } 
+        // Set TFT Brightness in one step with PWM
+        analogWrite(TFT_LEDA_PIN, tftBrightness); 
     }
-
 }
 
 void IRAM_ATTR timerAISR()
