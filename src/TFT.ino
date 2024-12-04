@@ -49,7 +49,7 @@ void singleClick();
 // GLOBAL VARIABLES
 const char *SSID = "WiFi_OBDII";    // WiFi ELM327 SSID
 
-// OBD update timer (200 ms)
+// OBD update timer (300 ms)
 hw_timer_t * timerA = NULL;
 uint8_t timerAID = 0;
 uint16_t timerAPrescaler = 80;
@@ -191,9 +191,9 @@ void loop()
         #endif
     }
 
-
     if(timerTFTFlag && connectionState == ELM_DEVICE_CONNECTED)
     {
+        
         // Reset timer flag
         timerTFTFlag = 0;
         // Update the TFT Screen with a main sprite
