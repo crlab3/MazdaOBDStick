@@ -16,13 +16,13 @@
 // Pin definitions for RGB LED CI,DI
 #define DATA_PIN 3
 #define CLOCK_PIN 13
-#define TEMP_OK 80
+#define TEMP_OK 70
 #define TEMP_HIGH 110
 // Nightmode brightness divider
 #define RGBBRIGHTDIV_NIGHT 5
 #define RGBBRIGHTDIV_DAY 1
 #define TFTBRIGHT_DAY 0
-#define TFTBRIGHT_NIGHT 250
+#define TFTBRIGHT_NIGHT 100
 
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite mainSprite = TFT_eSprite(&tft);
@@ -70,7 +70,7 @@ uint8_t numPids = 3;
 uint16_t obdErrorCount = 0;
 
 uint8_t buttonPressed = 0;
-uint8_t rgbBrightDiv = 1;
+uint8_t rgbBrightDiv = RGBBRIGHTDIV_DAY;
 
 obdData obdArray[3] = {obdEngineCoolantTempData,obdEngineOilTempData,obdRegenerationStatusData};
 ObdConnectionState connectionState=ELM_NOT_CONNECTED;
@@ -193,26 +193,26 @@ void loop()
 
     if(timerTFTFlag && connectionState == ELM_DEVICE_CONNECTED)
     {
-        
         // Reset timer flag
         timerTFTFlag = 0;
         // Update the TFT Screen with a main sprite
         mainSprite.loadFont(digital7font);
+
         mainSprite.fillScreen(TFT_BLACK);
         mainSprite.setTextDatum(MC_DATUM);
         mainSprite.setTextSize(2);
         mainSprite.setTextColor(TFT_BLUE);
         mainSprite.drawNumber(obdArray[0].pidData,tft.width()/2,tft.height()/2,4);
-        mainSprite.setTextColor(TFT_ORANGE);
+        mainSprite.setTextColor(TFT_YELLOW);
         mainSprite.drawNumber(obdArray[1].pidData,tft.width()/2,tft.height()/2+50,4);
-        mainSprite.setTextColor(TFT_YELLOW,false);
+        mainSprite.setTextColor(TFT_WHITE,false);
         if(obdArray[2].pidData>0)
         {
             mainSprite.drawString("DPF",tft.width()/2,tft.height()/2-50,4);    
         }
         else
         {
-            mainSprite.drawString("---",tft.width()/2,tft.height()/2-50,4); 
+            mainSprite.drawString("",tft.width()/2,tft.height()/2-50,4); 
         }
         mainSprite.pushSprite(0,0);
 
