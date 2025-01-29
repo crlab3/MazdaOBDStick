@@ -8,7 +8,8 @@
 #include <FastLED.h>
 #include "OneButton.h" // https://github.com/mathertel/OneButton
 #include "TFT_eSPI.h" // https://github.com/Bodmer/TFT_eSPI
-#include "digital7font.h"
+#include "digital7font_52.h"
+#include "digital7font_64.h"
 #include "mzdlogo.h"
 
 #define DEBUGMODE 1
@@ -126,7 +127,6 @@ void loop()
 { 
     // Call button callback function to€ trigger interrupt
     button.tick();
-
     // Build connection to WiFi OBD module
     if(timerAFlag && initCycle)
     {
@@ -195,28 +195,43 @@ void loop()
     {
         // Reset timer flag
         timerTFTFlag = 0;
+        
         // Update the TFT Screen with a main sprite
-        mainSprite.loadFont(digital7font);
-
         mainSprite.fillScreen(TFT_BLACK);
+        // Create coolant font adaptively
+        if(obdArray[0].pidData<100)
+            mainSprite.loadFont(digital7font64);
+        else mainSprite.loadFont(digital7font52);
+        // Draw coolant temp value to sprite
         mainSprite.setTextDatum(MC_DATUM);
         mainSprite.setTextSize(2);
         mainSprite.setTextColor(TFT_BLUE);
         mainSprite.drawNumber(obdArray[0].pidData,tft.width()/2,tft.height()/2,4);
+        // Unload coolant temp font
+        mainSprite.unloadFont();
+        // Create oil temp font adaptively
+        if(obdArray[1].pidData<100)
+            mainSprite.loadFont(digital7font64);
+        else mainSprite.loadFont(digital7font52);
+        // Draw oil temp value to sprite
+        mainSprite.setTextDatum(MC_DATUM);
+        mainSprite.setTextSize(2);
         mainSprite.setTextColor(TFT_YELLOW);
         mainSprite.drawNumber(obdArray[1].pidData,tft.width()/2,tft.height()/2+50,4);
+        // Unload oil temp temp font
+        mainSprite.unloadFont();
+        // Draw DPF status to TFT
+        mainSprite.loadFont(digital7font52);
         mainSprite.setTextColor(TFT_WHITE,false);
+        // Set DPF string
         if(obdArray[2].pidData>0)
-        {
             mainSprite.drawString("DPF",tft.width()/2,tft.height()/2-50,4);    
-        }
-        else
-        {
-            mainSprite.drawString("",tft.width()/2,tft.height()/2-50,4); 
-        }
+        else mainSprite.drawString("",tft.width()/2,tft.height()/2-50,4); 
+        // Unload DPF font
+        mainSprite.unloadFont();
         mainSprite.pushSprite(0,0);
 
-        //Update RGB LED
+        // Update RGB LED
         // Turn the RGB LED to yellow for showing DPF regeneration
         if(obdArray[2].pidData>0)
         {
@@ -280,54 +295,54 @@ void singleClick()
 
 int8_t obdGetData(uint8_t pidIdx)
 {
-  float respValue = myELM327.processPID(obdArray[pidIdx].serviceID, obdArray[pidIdx].pidID, obdArray[pidIdx].numExpResp, obdArray[pidIdx].numExpResp, obdArray[pidIdx].scaleFactor, obdArray[pidIdx].bias);
-      if (myELM327.nb_rx_state == ELM_SUCCESS)
-      {
-          obdErrorCount = 0;
-          // Fresh new data is received, health is at 100
-          obdArray[pidIdx].pidData = respValue;
-          obdArray[pidIdx].dataHealthScore = 100;     
-          #if DEBUGMODE
-              Serial.println("PID Query Successful from ELM327!");
-              Serial.print("PID Response Value:" );
-              Serial.print(obdArray[pidIdx].pidData);
-              Serial.print(", Health: ");
-              Serial.println(obdArray[pidIdx].dataHealthScore);
-          #endif
-      }
-      else if (myELM327.nb_rx_state == ELM_GETTING_MSG)
-      {
-          // While getting the new value, previous PID value quality decreases
-          if(obdArray[pidIdx].dataHealthScore > 0)
-              obdArray[pidIdx].dataHealthScore -= 1;
-          else
-              obdArray[pidIdx].dataHealthScore = 0;
-          // Keep trying to get PID value
-          #if DEBUGMODE
-              Serial.print("PID value:");
-              Serial.print(obdArray[pidIdx].pidData);
-              Serial.print(", Health: ");
-              Serial.println(obdArray[pidIdx].dataHealthScore);
-          #endif
-      }
-      else
-      {
-          // Error while waiting for response: PID value quality is set to zero
-          obdArray[pidIdx].dataHealthScore = 0;
-          obdErrorCount++;
-          // After having more errors than expected
-          if(obdErrorCount>OBD_ERROR_COUNT_MAX)
-          {
-              #if DEBUGMODE
-                  Serial.println("OBD Error Count Maximum reached with ELM327. Restarting ESP32...");
-              #endif
-              ESP.restart();
-          }
-      }
-        
-      #if DEBUGMODE
-          Serial.println("--------------obdGetData END-------------");
-      #endif
+    float respValue = myELM327.processPID(obdArray[pidIdx].serviceID, obdArray[pidIdx].pidID, obdArray[pidIdx].numExpResp, obdArray[pidIdx].numExpResp, obdArray[pidIdx].scaleFactor, obdArray[pidIdx].bias);
+    if (myELM327.nb_rx_state == ELM_SUCCESS)
+    {
+        obdErrorCount = 0;
+        // Fresh new data is received, health is at 100
+        obdArray[pidIdx].pidData = respValue;
+        obdArray[pidIdx].dataHealthScore = 100;     
+        #if DEBUGMODE
+            Serial.println("PID Query Successful from ELM327!");
+            Serial.print("PID Response Value:" );
+            Serial.print(obdArray[pidIdx].pidData);
+            Serial.print(", Health: ");
+            Serial.println(obdArray[pidIdx].dataHealthScore);
+        #endif
+    }
+    else if (myELM327.nb_rx_state == ELM_GETTING_MSG)
+    {
+        // While getting the new value, previous PID value quality decreases
+        if(obdArray[pidIdx].dataHealthScore > 0)
+            obdArray[pidIdx].dataHealthScore -= 1;
+        else
+            obdArray[pidIdx].dataHealthScore = 0;
+        // Keep trying to get PID value
+        #if DEBUGMODE
+            Serial.print("PID value:");
+            Serial.print(obdArray[pidIdx].pidData);
+            Serial.print(", Health: ");
+            Serial.println(obdArray[pidIdx].dataHealthScore);
+        #endif
+    }
+    else
+    {
+        // Error while waiting for response: PID value quality is set to zero
+        obdArray[pidIdx].dataHealthScore = 0;
+        obdErrorCount++;
+        // After having more errors than expected
+        if(obdErrorCount>OBD_ERROR_COUNT_MAX)
+        {
+            #if DEBUGMODE
+                Serial.println("OBD Error Count Maximum reached with ELM327. Restarting ESP32...");
+            #endif
+            ESP.restart();
+        }
+    }
+    
+    #if DEBUGMODE
+        Serial.println("--------------obdGetData END-------------");
+    #endif
 
-      return myELM327.nb_rx_state;
+    return myELM327.nb_rx_state;
 }
